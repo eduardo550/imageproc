@@ -23,9 +23,9 @@ def buildcumhistogram(image, colors=256):
 
 def histogram_equalization(image, histogram, L=256):
     new_image = np.empty(image.shape)
-    n_lines, n_cols = image.shape
+    norm = np.prod(image.shape)
 
-    new_image = ((L-1)/(n_lines*n_cols))*histogram[image]
+    new_image = ((L-1)/norm)*histogram[image]
 
     return new_image
 
@@ -39,17 +39,14 @@ def individual_cumulative_histogram(images, gamma):
         h = buildcumhistogram(img)
         new_images.append(histogram_equalization(img, h))
 
-
     return np.asarray(new_images)
 
 def joint_cumulative_histogram(images, gamma):
     histogram = buildcumhistogram(images.flatten())
-    new_images = []
+    
+    new_images = histogram_equalization(images.flatten(), histogram)
 
-    for img in images:
-        new_images.append(histogram_equalization(img, histogram))
-
-    return np.asarray(new_images)
+    return new_images.reshape(images.shape)
 
 def gamma_correction(images, gamma):
     new_images = []

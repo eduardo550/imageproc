@@ -6,62 +6,64 @@
 import numpy as np
 import imageio as io
 import math
-#import matplotlib.pyplot as plt
 
-#Mostrar multiplas imgs
-# f = plt.figure()
-# n=
-# for i in range(n):
-#     # Debug, plot figure
-#     f.add_subplot(1, n, i + 1)
-#     plt.imshow(img[i])
-
-# plt.show()
+#construir o histograma cumulativo
 def buildcumhistogram(image, colors=256):
     hist, edges = np.histogram(image, bins=colors)
     return np.cumsum(hist)
 
+#equalizar o histograma
 def histogram_equalization(image, histogram, L=256):
     new_image = np.empty(image.shape)
     norm = np.prod(image.shape)
 
+    #funcao de equalizacao
     new_image = ((L-1)/norm)*histogram[image]
 
     return new_image
 
+#funcao para identificador 0 da funcao de realce
 def do_nothing(images, gamma):
     return images
 
+#construir o histograma cumulativo individual
 def individual_cumulative_histogram(images, gamma):
     new_images = []
 
+    #para cada imagem, constroi o histograma cumulativo
     for img in images:
         h = buildcumhistogram(img)
         new_images.append(histogram_equalization(img, h))
 
     return np.asarray(new_images)
 
+#construir o histograma cumulativo conjunto
 def joint_cumulative_histogram(images, gamma):
     histogram = buildcumhistogram(images.flatten())
     
+    #equalizando 
     new_images = histogram_equalization(images.flatten(), histogram)
 
     return new_images.reshape(images.shape)
 
+#realizar a correcao gama
 def gamma_correction(images, gamma):
     new_images = []
 
+    #para cada imagem, aplica a correcao
     for img in images:
         new_images.append(np.floor(255*np.float_power(img/255.0, 1/gamma)))
 
     return np.asarray(new_images)
 
+#realiza a superresolucao
 def superresolution(images):
     #assumindo resolução segundo proposta do trabalho
     h_res = (images.shape[1]*2, images.shape[2]*2)
     h_image = np.empty(h_res)
-    step = 2    #cada subimagem tem metade da resolucao da final
+    step = 2    #cada sub-imagem tem metade da resolucao da final
 
+    #construindo a cena a partir das sub-imagens
     for i in np.arange(images.shape[1]):
         for j in np.arange(images.shape[2]):
             hi, hj = (i*step, j*step)
@@ -72,6 +74,7 @@ def superresolution(images):
 
     return h_image
 
+#Root Mean Squared Error
 def rmse(image1, image2):
     assert image1.shape == image2.shape
 
@@ -89,6 +92,7 @@ gamma = np.single(input().rstrip())
 imglownames = [imglowbase + str(x) + ".png" for x in range(4)]
 imglows = np.asarray([io.imread(name) for name in imglownames])
 
+#identificadores da funcao de realce
 enhancetype = {
     "0": do_nothing,
     "1": individual_cumulative_histogram,
@@ -97,6 +101,7 @@ enhancetype = {
 }
 enhanced_images = enhancetype[idfunc](imglows, gamma)
 
+#criando a superresolucao
 superimage = superresolution(enhanced_images)
 
 #carregando imagem de referencia

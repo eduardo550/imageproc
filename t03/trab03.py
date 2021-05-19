@@ -25,19 +25,17 @@ def oned_filtering(image, f):
 #Filtragem 2D
 def twod_filtering(image, f):
     a, b = ((f.shape[0]-1)//2, (f.shape[1]-1)//2)     #cálculo dos intervalos do filtro, dessa vez em 2D
-    new_image = []
+    lines, cols = image.shape
+    new_image = np.empty((lines-(2*a), cols-(2*b)))
 
     #aplicamos o filtro somente nos intervalos onde ele é definido
     for i in np.arange(a, image.shape[0]-a):
-        line = []
         for j in np.arange(b, image.shape[1]-b):
             #aqui é feita a multiplicação element-wise para a vizinhança do pixel [i, j] entre a e b
-            pixel = np.sum(np.multiply(image[(i-a):(i+a+1), (j-b):(j+b+1)], f))
-            line.append(pixel)
-        new_image.append(line)
+            new_image[i-a, j-b] = np.sum(np.multiply(image[(i-a):(i+a+1), (j-b):(j+b+1)], f))
 
     #fazendo o padding de reflexão, com os intervalos a e b ditando quantos pixels devem ser preenchidos
-    return np.pad(new_image, ((a, a), (b, b)), "reflect", reflect_type="even")
+    return np.pad(new_image, ((a, a), (b, b)), "symmetric", reflect_type="even")
 
 #Filtragem 2D com filtro mediana
 def median_2dfiltering(image, filter_size):
@@ -102,12 +100,12 @@ elif (F == '2'):
     #Lendo cada linha da matriz de pesos
     for n in np.arange(lateral_size):
         aux = input().rstrip().split(" ")
-        filter2d.append(aux)
         l += len(aux)
+        filter2d.append(np.asarray(aux, dtype=float))
 
     assert l == lateral_size ** 2
 
-    filtered_image = twod_filtering(reference_image, np.asarray(filter2d, dtype=float))
+    filtered_image = twod_filtering(reference_image, np.array(filter2d))
 
 elif (F == '3'):
     lateral_size = int(input().rstrip())

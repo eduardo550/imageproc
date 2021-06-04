@@ -5,7 +5,8 @@
 
 import numpy as np
 import imageio as io
-from numpy.lib.stride_tricks import as_strided#sliding_window_view
+from numpy.lib.stride_tricks import as_strided
+from scipy.fft import rfft2, irfft2
 # import matplotlib.pyplot as plt
 
 def get_centrality(mode):
@@ -26,7 +27,6 @@ def denoising(img, mode, filter_size, gamma, noise_disp):
     #Padding antes da aplicação do filtro
     padded_image = np.pad(img, (filter_size-1)//2, "symmetric")
 
-    #filter = sliding_window_view(padded_image, (filter_size, filter_size))
     filter = as_strided(padded_image, (*img.shape, filter_size, filter_size), (*padded_image.strides, *padded_image.strides))
     centrality = get_centrality(mode)
     dispersion = get_dispersion(mode)
@@ -42,6 +42,21 @@ def denoising(img, mode, filter_size, gamma, noise_disp):
 
     return new_image
 
+#Dado na descrição do trabalho
+def gaussian_filter (k, sigma):
+    arx = np.arange(-(k // 2) + 1.0 , (k//2) + 1.0)
+    x, y = np.meshgrid(arx , arx)
+    filt = np.exp( -(1/2) * (np.square(x) + np.square(y)) / np.square( sigma ))
+    return filt / np.sum(filt)
+
+def constrained_least_squares(img, gaussian):
+    inverse_laplacian = rfft2([[0, -1, 0], [-1, 4, -1], [0, -1, 0]])
+    fgaussian = rfft2(gaussian)
+    fimg = rfft2(img)
+
+    #do the math
+
+    return irfft2(fimg)
 
 #Root Mean Squared Error
 def rmse(image1, image2):
@@ -66,13 +81,19 @@ if (F == '1'):
     filter_size = int(input().rstrip())
     mode = input().rstrip()
 
+    assert filter_size in [3, 5, 7, 9, 11]
+
     estimated_noise_dispersion = get_dispersion(mode)(degraded_image[i1:i2+1, j1:j2+1])
     restored_image = denoising(degraded_image, mode, filter_size, gamma, estimated_noise_dispersion)
 
 elif (F == '2'):
     filter_size = int(input().rstrip())
-    assert filter_size in [3, 5, 7, 9, 11]
     alpha = float(input().rstrip())
+    
+    assert filter_size in [3, 5, 7, 9, 11]
+    g = gaussian_filter(filter_size, alpha)
+
+    restored_image = constrained_least_squares(degraded_image, g)
 else:
     print("Method not recognized. Aborting.")
     exit()

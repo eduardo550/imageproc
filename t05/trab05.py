@@ -25,15 +25,14 @@ def quantize(image, bits):
 
     return image >> (8-bits)
 
-def normalized_histogram_descriptor(image):
-    hist, _ = np.histogram(image, bins=image.max()+1)
+def normalized_histogram_descriptor(image, bits):
+    hist, _ = np.histogram(image, bins=2 ** bits)
     norm_hist = hist / np.sum(hist)
     return norm_hist / np.linalg.norm(norm_hist)
 
-def diag_coocurrence_mat(image):
-    mat_size = image.max() + 1
+def diag_coocurrence_mat(image, b):
+    mat_size = 2 ** b
     mat = np.zeros((mat_size, mat_size), dtype=int)
-
     co_occurrences = stride_tricks.as_strided(
         x=image,
         shape=(image.shape[0]-1, image.shape[1]-1, 2),
@@ -41,16 +40,15 @@ def diag_coocurrence_mat(image):
         writeable=False
     )
 
+
     for intensity in np.unique(image):
-        #convert to histogram
-        #a, counts = np.unique(, return_counts=True)
-        counts, _ = np.histogram(co_occurrences[co_occurrences[:, :, 0] == intensity, 1], bins=image.max()+1)
-        mat[intensity, :] = counts
+        counts, _ = np.histogram(co_occurrences[co_occurrences[:, :, 0] == intensity, 1], bins=mat_size)
+        mat[intensity] = counts
 
     return mat
 
-def haralick_texture_descriptor(image):
-    c = diag_coocurrence_mat(image)
+def haralick_texture_descriptor(image, b):
+    c = diag_coocurrence_mat(image, b)
     c = c / np.sum(c)
     descriptors = []
 
@@ -100,24 +98,6 @@ def haralick_texture_descriptor(image):
 
     return np.asarray(descriptors) / np.linalg.norm(descriptors)
 
-#Função de convolução implementada no trabalho 3, caso scipy esteja quebrado no run.codes
-def convolve(image, f):
-    flat_image = image.flatten()
-    f = f.flatten()
-    a = (f.size-1)//2   #cálculo dos intervalos do filtro, para guiar a aplicação na imagem resultante
-    new_image = []
-
-    #excluimos os primeiros e últimos 'a' pixels, que são indefinidos para a imagem final
-    for i in np.arange(a, flat_image.size-a):
-        #para o pixel i, o intervalo é entre [i-a, i+a]. +1 é somado para incluir o último elemento
-        pixel = np.dot(flat_image[(i-a):(i+a+1)], f)
-        new_image.append(pixel)
-
-    #fazendo o padding e convertendo de volta para uma matriz
-    new_image = np.pad(new_image, (a, a), "wrap")
-    return new_image.reshape(image.shape)
-
-
 def oriented_gradients_histogram(image):
     sobel_x = np.array([
         [-1, -2, -1],
@@ -136,6 +116,7 @@ def oriented_gradients_histogram(image):
         grad_y = ndimage.convolve(image.astype(np.double), sobel_y)
     except ImportError:
         print("run codes not fixed")
+        return
 
     magnitude_num = np.sqrt(np.square(grad_x) + np.square(grad_y))
     magnitude_mat = magnitude_num / np.sum(magnitude_num)
@@ -153,7 +134,39 @@ def oriented_gradients_histogram(image):
     for i in range(9):
         descriptor[i] = np.sum(magnitude_mat[angle_bins == i])
 
-    return descriptor 
+    return descriptor / np.linalg.norm(descriptor)
+
+def compute_descriptor(image, b):
+    dc = normalized_histogram_descriptor(image, b)
+    dt = haralick_texture_descriptor(image, b)
+    dg = oriented_gradients_histogram(image)
+    return np.concatenate((dc, dt, dg))
+
+def find_object(image, b, object_descriptor):
+    quantized_graylevel_image = quantize(luminance_preprocessing(image), b)
+    #Separando as janelas
+    window_coords = (quantized_graylevel_image.shape[0] // 32, quantized_graylevel_image.shape[1] // 32)
+    window_strides = (quantized_graylevel_image.strides[0] * 16, quantized_graylevel_image.strides[1] * 16)
+    windows = stride_tricks.as_strided(
+        quantized_graylevel_image,
+        shape=(*window_coords, 32, 32),
+        strides=(*window_strides, *quantized_graylevel_image.strides),
+        writeable=False
+    )
+    distances = np.zeros(window_coords)
+    
+    #TODO numpyar
+    for i in range(window_coords[0]):
+        for j in range(window_coords[1]):
+            ld = compute_descriptor(windows[i, j], b)
+            distances[i, j] = np.sqrt(
+                np.sum(
+                    np.square(object_descriptor - ld)
+                )
+            )
+
+    coords = np.where(distances == distances.min())
+    return (coords[0][0], coords[1][0])
 
 def main():
     #Lendo entrada do programa
@@ -161,12 +174,21 @@ def main():
     g = input().rstrip()
     b = int(input().rstrip())
 
-    object_image = np.asarray(io.imread(g))
+    object_image = np.asarray(io.imread(f))
     quantized_graylevel_object = quantize(luminance_preprocessing(object_image), b)
+    d = compute_descriptor(quantized_graylevel_object, b)
+
+    large_image = np.asarray(io.imread(g))
+    i, j = find_object(large_image, b, d)
     
-    dc = normalized_histogram_descriptor(quantized_graylevel_object)
-    dt = haralick_texture_descriptor(quantized_graylevel_object)
-    dg = oriented_gradients_histogram(quantized_graylevel_object)
-    print(dg)
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+    fig, ax = plt.subplots()
+    ax . imshow ( large_image )
+    rect = patches.Rectangle((j * 16 , i * 16 ) , 32 , 32 ,
+    linewidth =1, edgecolor='r' , facecolor='none')
+    ax.add_patch ( rect )
+    plt.show ()
+
 if __name__ == '__main__':
     main()

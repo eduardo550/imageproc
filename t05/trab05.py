@@ -248,6 +248,7 @@ def main(opt):
 
 if __name__ == '__main__':
     #Conveniência para correção.
+    opt = False
     if len(sys.argv) == 2:
         opt = True
     main(opt)

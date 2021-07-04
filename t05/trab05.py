@@ -96,7 +96,8 @@ def haralick_texture_descriptor(image, b):
         )
     )
 
-    return np.asarray(descriptors) / np.linalg.norm(descriptors)
+    norm = np.linalg.norm(descriptors)
+    return descriptors / norm if norm != 0 else descriptors
 
 def oriented_gradients_histogram(image):
     sobel_x = np.array([
@@ -129,12 +130,12 @@ def oriented_gradients_histogram(image):
     angles = np.degrees(angles)
     bins = np.arange(0, 180, 20)
     angle_bins = np.digitize(angles, bins, right=False)
-
     descriptor = np.zeros(9)
     for i in range(9):
         descriptor[i] = np.sum(magnitude_mat[angle_bins == i])
 
-    return descriptor / np.linalg.norm(descriptor)
+    norm = np.linalg.norm(descriptor)
+    return descriptor / norm if norm != 0 else descriptor
 
 def compute_descriptor(image, b):
     dc = normalized_histogram_descriptor(image, b)
@@ -145,14 +146,16 @@ def compute_descriptor(image, b):
 def find_object(image, b, object_descriptor):
     quantized_graylevel_image = quantize(luminance_preprocessing(image), b)
     #Separando as janelas
-    window_coords = (quantized_graylevel_image.shape[0] // 32, quantized_graylevel_image.shape[1] // 32)
+    window_coords = (quantized_graylevel_image.shape[0] // 16, quantized_graylevel_image.shape[1] // 16)
     window_strides = (quantized_graylevel_image.strides[0] * 16, quantized_graylevel_image.strides[1] * 16)
+
     windows = stride_tricks.as_strided(
         quantized_graylevel_image,
         shape=(*window_coords, 32, 32),
         strides=(*window_strides, *quantized_graylevel_image.strides),
         writeable=False
     )
+    print(windows[0, 0, 0, 16], windows[0, 1, 0, 0])
     distances = np.zeros(window_coords)
     
     #TODO numpyar
@@ -180,7 +183,8 @@ def main():
 
     large_image = np.asarray(io.imread(g))
     i, j = find_object(large_image, b, d)
-    
+    print(i, j)
+
     import matplotlib.pyplot as plt
     import matplotlib.patches as patches
     fig, ax = plt.subplots()

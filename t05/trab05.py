@@ -6,6 +6,7 @@
 from math import inf
 import numpy as np
 import imageio as io
+import sys
 from numpy.lib import stride_tricks
 
 def luminance_preprocessing(image):
@@ -33,17 +34,20 @@ def normalized_histogram_descriptor(image, bits):
 def diag_coocurrence_mat(image, b):
     mat_size = 2 ** b
     mat = np.zeros((mat_size, mat_size), dtype=int)
-    co_occurrences = stride_tricks.as_strided(
-        x=image,
-        shape=(image.shape[0]-1, image.shape[1]-1, 2),
-        strides=(*image.strides, image.strides[0] + image.strides[1]),
-        writeable=False
-    )
-
-
-    for intensity in np.unique(image):
-        counts, _ = np.histogram(co_occurrences[co_occurrences[:, :, 0] == intensity, 1], bins=mat_size)
-        mat[intensity] = counts
+    
+    for i in range(image.shape[0]-1):
+        for j in range(image.shape[1]-1):
+            p, cooc = (image[i, j], image[i+1, j+1])
+            mat[p, cooc] += 1
+    # co_occurrences = stride_tricks.as_strided(
+    #     x=image,
+    #     shape=(image.shape[0]-1, image.shape[1]-1, 2),
+    #     strides=(*image.strides, image.strides[0] + image.strides[1]),
+    #     writeable=False
+    # )
+    # for intensity in np.unique(image):
+    #     counts, _ = np.histogram(co_occurrences[co_occurrences[:, :, 0] == intensity, 1], bins=mat_size)
+    #     mat[intensity] = counts
 
     return mat
 
@@ -145,8 +149,9 @@ def compute_descriptor(image, b):
 
 def find_object(image, b, object_descriptor):
     quantized_graylevel_image = quantize(luminance_preprocessing(image), b)
+
     #Separando as janelas
-    window_coords = (quantized_graylevel_image.shape[0] // 16, quantized_graylevel_image.shape[1] // 16)
+    window_coords = ((quantized_graylevel_image.shape[0] // 16)- 1, (quantized_graylevel_image.shape[1] // 16 )- 1) #Nessa conta, a última janela 32x32 seria forado vetor
     window_strides = (quantized_graylevel_image.strides[0] * 16, quantized_graylevel_image.strides[1] * 16)
 
     windows = stride_tricks.as_strided(
@@ -155,7 +160,7 @@ def find_object(image, b, object_descriptor):
         strides=(*window_strides, *quantized_graylevel_image.strides),
         writeable=False
     )
-    print(windows[0, 0, 0, 16], windows[0, 1, 0, 0])
+    
     distances = np.zeros(window_coords)
     
     #TODO numpyar
@@ -172,6 +177,8 @@ def find_object(image, b, object_descriptor):
     return (coords[0][0], coords[1][0])
 
 def main():
+    np.set_printoptions(threshold=sys.maxsize)
+
     #Lendo entrada do programa
     f = input().rstrip()
     g = input().rstrip()
@@ -180,7 +187,7 @@ def main():
     object_image = np.asarray(io.imread(f))
     quantized_graylevel_object = quantize(luminance_preprocessing(object_image), b)
     d = compute_descriptor(quantized_graylevel_object, b)
-
+    
     large_image = np.asarray(io.imread(g))
     i, j = find_object(large_image, b, d)
     print(i, j)
